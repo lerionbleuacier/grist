@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boussole du Secrétariat</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  :root{
+    --paper:#EEEDE2; --paper-raised:#F8F7EF; --paper-sunken:#E4E2D3;
+    --ink:#202A20; --ink-soft:#5A6353; --ink-faint:#8B9282; --line:#D7D3C0;
+    --accent:#2F5233; --accent-contrast:#F8F7EF; --accent-soft:#DCE3D2;
+    --urgent:#AE3D28; --urgent-soft:#F1D9CE;
+    --warn:#A9721B; --warn-soft:#EFE1C1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#1A201A; --paper-raised:#222922; --paper-sunken:#151A15;
+      --ink:#ECEAE0; --ink-soft:#A6AC9B; --ink-faint:#727A67; --line:#38402F;
+      --accent:#84B87F; --accent-contrast:#16201A; --accent-soft:#28351F;
+      --urgent:#E08A6D; --urgent-soft:#3A2318;
+      --warn:#E0B564; --warn-soft:#392C15;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:"Public Sans",system-ui,sans-serif;}
+  #app{padding:16px; max-width:1180px; margin:0 auto;}
+
+  h1{font-family:"Fraunces",Georgia,serif; font-weight:600; font-size:20px; margin:0 0 2px;}
+  .sub{font-size:12px; color:var(--ink-faint); margin:0 0 14px;}
+
+  .toolbar{display:flex; gap:8px; margin-bottom:12px;}
+  .searchbox{flex:1; display:flex; align-items:center; gap:8px; background:var(--paper-raised); border:1px solid var(--line); border-radius:8px; padding:8px 11px;}
+  .searchbox input{border:0; background:transparent; outline:0; width:100%; font:500 13px "Public Sans",sans-serif; color:var(--ink);}
+  .searchbox svg{color:var(--ink-faint); flex:none;}
+
+  .tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; margin-bottom:22px;}
+  .tile{appearance:none; cursor:pointer; text-align:left; background:var(--paper-raised); border:1px solid var(--line);
+        border-radius:9px; padding:10px 12px; font-family:"Public Sans",sans-serif; color:var(--ink); display:flex; flex-direction:column; gap:4px;}
+  .tile:hover{border-color:var(--accent);}
+  .tile .name{font-weight:600; font-size:12.5px; line-height:1.25;}
+  .tile .count{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-faint);}
+  .tile.active{background:var(--accent); border-color:var(--accent); color:var(--accent-contrast);}
+  .tile.active .count{color:var(--accent-contrast); opacity:.8;}
+
+  .grid{display:grid; grid-template-columns:1fr; gap:22px;}
+  @media(min-width:820px){ .grid{grid-template-columns:1.7fr 1fr;} }
+
+  .panel-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
+  .panel-head h2{font-family:"Fraunces",serif; font-weight:600; font-size:16px; margin:0;}
+  .panel-head .hint{font-size:11px; color:var(--ink-faint); font-family:"IBM Plex Mono",monospace;}
+
+  .cards{display:flex; flex-direction:column; gap:8px;}
+  .card{background:var(--paper-raised); border:1px solid var(--line); border-left:4px solid var(--ink-faint); border-radius:9px; overflow:hidden;}
+  .card[data-urgency*="rès" i]{border-left-color:var(--urgent);}
+  .card[data-urgency*="urgent" i]:not([data-urgency*="rès" i]){border-left-color:var(--warn);}
+  .card summary{list-style:none; cursor:pointer; padding:11px 13px; display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+  .card summary::-webkit-details-marker{display:none;}
+  .card-title{font-weight:600; font-size:13.5px;}
+  .card-trigger{font-size:11.5px; color:var(--ink-soft); margin-top:3px; line-height:1.4;}
+  .badges{display:flex; gap:5px; flex:none;}
+  .badge{font-family:"IBM Plex Mono",monospace; font-size:9.5px; padding:3px 7px; border-radius:999px; white-space:nowrap;}
+  .badge.cat{background:var(--accent-soft); color:var(--accent);}
+  .badge.urg-normal{background:var(--paper-sunken); color:var(--ink-soft);}
+  .badge.urg-urgent{background:var(--warn-soft); color:var(--warn); font-weight:600;}
+  .badge.urg-tres{background:var(--urgent-soft); color:var(--urgent); font-weight:600;}
+  .card-body{padding:0 13px 13px; border-top:1px solid var(--line); margin-top:2px; padding-top:10px;}
+  .card-body ol{margin:0 0 9px; padding-left:17px; display:flex; flex-direction:column; gap:5px;}
+  .card-body li{font-size:12px; line-height:1.5;}
+  .card-meta{font-size:10.5px; color:var(--ink-soft); border-top:1px dashed var(--line); padding-top:7px;}
+  .empty{padding:22px 12px; text-align:center; color:var(--ink-faint); font-size:12px; border:1px dashed var(--line); border-radius:9px;}
+
+  .task-group{margin-bottom:15px;}
+  .task-group h3{font-size:10px; letter-spacing:.07em; text-transform:uppercase; font-weight:700; margin:0 0 7px; display:flex; align-items:center; gap:6px;}
+  .task-group h3 .sw{width:6px;height:6px;border-radius:50%;}
+  .task-group[data-status="retard"] h3{color:var(--urgent);} .task-group[data-status="retard"] .sw{background:var(--urgent);}
+  .task-group[data-status="afaire"] h3{color:var(--ink-soft);} .task-group[data-status="afaire"] .sw{background:var(--ink-faint);}
+  .task-group[data-status="autre"] h3{color:var(--warn);} .task-group[data-status="autre"] .sw{background:var(--warn);}
+  .task{background:var(--paper-raised); border:1px solid var(--line); border-radius:8px; padding:9px 10px; margin-bottom:6px; display:flex; gap:8px;}
+  .avatar{flex:none; width:22px;height:22px;border-radius:50%; background:var(--accent-soft); color:var(--accent);
+          display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; font-family:"IBM Plex Mono",monospace;}
+  .task-title{font-size:12px; font-weight:600; line-height:1.35;}
+  .task-due{font-family:"IBM Plex Mono",monospace; font-size:10px; margin-top:2px; color:var(--ink-faint);}
+  .task-group[data-status="retard"] .task-due{color:var(--urgent); font-weight:600;}
+  .msg{font-size:11.5px; color:var(--ink-faint); padding:8px 0;}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Boussole du secrétariat</h1>
+  <p class="sub">Connecté en direct à votre document Grist.</p>
+
+  <div class="toolbar">
+    <label class="searchbox">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="search" type="text" placeholder="Chercher une situation…">
+    </label>
+  </div>
+
+  <div id="tiles" class="tiles"></div>
+
+  <div class="grid">
+    <section>
+      <div class="panel-head"><h2>Fiches pratiques</h2><span class="hint" id="count"></span></div>
+      <div class="cards" id="cards"><div class="msg">Chargement…</div></div>
+    </section>
+    <section>
+      <div class="panel-head"><h2>Tâches</h2></div>
+      <div id="tasks"><div class="msg">Chargement…</div></div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG — à adapter si vos noms de table/colonne diffèrent.
+   Les tables Categories et Taches sont lues directement par leur
+   nom de table Grist (pas de mapping visuel possible pour elles,
+   seule la table à laquelle ce widget est rattaché — Procedures —
+   profite du mapping de colonnes dans le panneau Grist).
+   ============================================================ */
+const CONFIG = {
+  categoriesTable: 'Categories',
+  categoriesCols: { nom: 'Nom', ordre: 'Ordre' },
+
+  tachesTable: 'Taches',
+  // Pour afficher un nom de personne lisible plutot que l'ID de reference,
+  // ajoutez dans Taches une colonne formule "Assigne_a_Nom" = $Assigne_a.Nom
+  tachesCols: { titre: 'Titre', assigneNom: 'Assigne_a_Nom', statut: 'Statut', echeance: 'Echeance' },
+};
+
+/* Colonnes de la table Procedures (celle a laquelle le widget est
+   rattache) : mappees via le panneau Grist qui apparait a l'ajout
+   du widget. "Categorie" doit pointer vers une colonne TEXTE — dans
+   Procedures, ajoutez une colonne formule "Categorie_Nom" = $Categorie.Nom */
+const procColumns = [
+  {name: "Titre",     title: "Titre",             type: "Text"},
+  {name: "Categorie", title: "Catégorie (texte)", type: "Text", optional: true},
+  {name: "Trigger",   title: "Quand l'utiliser",   type: "Text", optional: true},
+  {name: "Etapes",    title: "Étapes à suivre",    type: "Text"},
+  {name: "Urgence",   title: "Urgence",            type: "Text", optional: true},
+  {name: "Contact",   title: "Qui contacter",      type: "Text", optional: true},
+  {name: "MotsCles",  title: "Mots-clés",          type: "Text", optional: true},
+];
+
+grist.ready({requiredAccess: 'full', columns: procColumns});
+
+let procedures = [];
+let categories = [];
+let taches = [];
+let activeCat = null;
+
+grist.onRecords(function (records, mappings) {
+  procedures = grist.mapColumnNames(records, mappings) || records;
+  renderTiles();
+  renderCards();
+});
+
+async function loadSideTables() {
+  try {
+    const catData = await grist.docApi.fetchTable(CONFIG.categoriesTable);
+    categories = rowsFromColumnar(catData).sort((a, b) =>
+      (a[CONFIG.categoriesCols.ordre] || 0) - (b[CONFIG.categoriesCols.ordre] || 0));
+  } catch (e) { categories = []; }
+
+  try {
+    const tacheData = await grist.docApi.fetchTable(CONFIG.tachesTable);
+    taches = rowsFromColumnar(tacheData);
+  } catch (e) { taches = []; }
+
+  renderTiles();
+  renderTasks();
+}
+
+function rowsFromColumnar(colData) {
+  const ids = colData.id || [];
+  return ids.map((id, i) => {
+    const row = { id };
+    for (const key in colData) {
+      if (key === 'id') continue;
+      row[key] = colData[key][i];
+    }
+    return row;
+  });
+}
+
+function catName(row) { return row[CONFIG.categoriesCols.nom]; }
+
+function renderTiles() {
+  const tilesEl = document.getElementById('tiles');
+  if (!categories.length) { tilesEl.innerHTML = ''; return; }
+  tilesEl.innerHTML = categories.map(c => {
+    const name = catName(c);
+    const n = procedures.filter(p => p.Categorie === name).length;
+    const active = activeCat === name;
+    return `<button class="tile${active ? ' active' : ''}" data-cat="${escapeAttr(name)}">
+      <span class="name">${escapeHtml(name)}</span><span class="count">${n} fiche${n > 1 ? 's' : ''}</span>
+    </button>`;
+  }).join('');
+  tilesEl.querySelectorAll('.tile').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = btn.getAttribute('data-cat');
+      activeCat = activeCat === cat ? null : cat;
+      renderTiles();
+      renderCards();
+    });
+  });
+}
+
+function urgencyClass(u) {
+  if (!u) return 'urg-normal';
+  const s = u.toLowerCase();
+  if (s.includes('rès') || s.includes('res ') || s.includes('tres')) return 'urg-tres';
+  if (s.includes('urgent')) return 'urg-urgent';
+  return 'urg-normal';
+}
+
+function stepsToList(text) {
+  if (!text) return [];
+  return text.split('\n').map(l => l.replace(/^\s*\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+}
+
+function renderCards() {
+  const q = (document.getElementById('search').value || '').trim().toLowerCase();
+  const list = procedures.filter(p => {
+    const matchesCat = !activeCat || p.Categorie === activeCat;
+    const hay = [p.Titre, p.Trigger, p.MotsCles, p.Categorie].filter(Boolean).join(' ').toLowerCase();
+    const matchesQ = !q || hay.includes(q);
+    return matchesCat && matchesQ;
+  });
+
+  document.getElementById('count').textContent = list.length + ' / ' + procedures.length;
+  const cardsEl = document.getElementById('cards');
+
+  if (!list.length) {
+    cardsEl.innerHTML = '<div class="empty">Aucune fiche ne correspond. Ajoutez-la dans la table Procedures.</div>';
+    return;
+  }
+
+  cardsEl.innerHTML = list.map(p => {
+    const steps = stepsToList(p.Etapes);
+    return `
+      <details class="card" data-urgency="${p.Urgence || ''}">
+        <summary>
+          <div>
+            <div class="card-title">${escapeHtml(p.Titre || '(sans titre)')}</div>
+            ${p.Trigger ? `<div class="card-trigger">${escapeHtml(p.Trigger)}</div>` : ''}
+          </div>
+          <div class="badges">
+            ${p.Categorie ? `<span class="badge cat">${escapeHtml(p.Categorie)}</span>` : ''}
+            <span class="badge ${urgencyClass(p.Urgence)}">${escapeHtml(p.Urgence || 'Normal')}</span>
+          </div>
+        </summary>
+        <div class="card-body">
+          ${steps.length ? `<ol>${steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ol>` : ''}
+          ${p.Contact ? `<div class="card-meta">Référent : <b>${escapeHtml(p.Contact)}</b></div>` : ''}
+        </div>
+      </details>`;
+  }).join('');
+}
+
+function renderTasks() {
+  const tasksEl = document.getElementById('tasks');
+  if (!taches.length) { tasksEl.innerHTML = '<div class="msg">Aucune tâche.</div>'; return; }
+
+  const now = new Date();
+  const c = CONFIG.tachesCols;
+  const groups = { retard: [], afaire: [], autre: [] };
+
+  taches.forEach(t => {
+    const statut = (t[c.statut] || '').toLowerCase();
+    if (statut.includes('fait')) return; // on masque les taches terminees
+    const echDate = t[c.echeance] ? new Date(t[c.echeance] * 1000) : null;
+    const isLate = echDate && echDate < now;
+    if (isLate) groups.retard.push(t);
+    else if (statut.includes('cours')) groups.autre.push(t);
+    else groups.afaire.push(t);
+  });
+
+  const labels = { retard: 'En retard', afaire: 'À faire', autre: 'En cours' };
+  let html = '';
+  for (const key of ['retard', 'afaire', 'autre']) {
+    if (!groups[key].length) continue;
+    html += `<div class="task-group" data-status="${key}"><h3><span class="sw"></span>${labels[key]}</h3>`;
+    html += groups[key].map(t => {
+      const name = t[c.assigneNom] || '?';
+      const initial = String(name).trim().charAt(0).toUpperCase() || '?';
+      const ech = t[c.echeance] ? new Date(t[c.echeance] * 1000).toLocaleDateString('fr-FR', {day:'2-digit', month:'short'}) : '';
+      return `<div class="task">
+        <div class="avatar">${escapeHtml(initial)}</div>
+        <div>
+          <div class="task-title">${escapeHtml(t[c.titre] || '(sans titre)')}</div>
+          <div class="task-due">${ech ? 'Échéance ' + ech + ' — ' : ''}${escapeHtml(name)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    html += '</div>';
+  }
+  tasksEl.innerHTML = html || '<div class="msg">Rien en attente — tout est fait.</div>';
+}
+
+document.getElementById('search').addEventListener('input', renderCards);
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+loadSideTables();
+setInterval(loadSideTables, 20000);
+window.addEventListener('focus', loadSideTables);
+</script>
+</body>
+</html>
